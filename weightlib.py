@@ -64,7 +64,8 @@ class GetData():
                   'Calories in', 
                   'Glucides', 'Lipides', 'Proteines', 
                   'Calories Exercice Brut', 'C_Ex_Cardio', 'C_Ex_Strength',
-                  'Verif']
+                  'Verif',
+                  'Duree_exercice']
         
         self.raw_from_manual = self.__extract_data(self.manual_follow_up_file_name, 
                                                    fields,
@@ -77,7 +78,7 @@ class GetData():
         # format is :
         # [ { 'date' : 'DD-month_name-YYYY', 'Masse Totale' : str of total mass, 'Masse Grasse' : str of fat mass,
         #     'Calories In' : str of kcals, 'Glucides' : str, 'Lipides' : str, 'Proteines' : str, 'Calories Exercice Brut': str,
-        #     'C_Ex_Cardio': str, 'C_Ex_Strength': str, 'Verif': str, None: ['', '']
+        #     'C_Ex_Cardio': str, 'C_Ex_Strength': str, 'Verif': str, 'Duree_exercice' : str, None: ['', '']
         #   },
         # ....
         # ]
@@ -113,7 +114,7 @@ class GetData():
         
         # [ { 'date' : date_object, 'masse_totale' : total mass (float), 'masse_grasse' : fat mass (float),
         #     'calories_in' : kcals (float), 'glucides' : float, 'lipides' : float, 'proteines' : float, 'calories_exercice': float,
-        #     'calories_cardio': float, 'calories_strength': float },
+        #     'calories_cardio': float, 'calories_strength': float, 'duree_exercice' : float },
         # ....
         # ]
         
@@ -133,6 +134,7 @@ class GetData():
             cals_ex = self.__conv_to_float(cdict.get('Calories Exercice Brut', '0.0'))
             cals_card = self.__conv_to_float(cdict.get('C_Ex_Cardio', '0.0'))
             cals_str = self.__conv_to_float(cdict.get('C_Ex_Strength', '0.0'))
+            duree_ex = self.__conv_to_float(cdict.get('Duree_exercice', '0.0'))
             new_rec = dict([ ('date', cdate), 
                              ('masse_totale', cmt),
                              ('masse_grasse', cmg),
@@ -142,7 +144,8 @@ class GetData():
                              ('proteines', prot),
                              ('calories_exercice', cals_ex),
                              ('calories_cardio', cals_card),
-                             ('calories_strength', cals_str)
+                             ('calories_strength', cals_str),
+                             ('duree_exercice', duree_ex)
                              ])
             self.daily_data.append(new_rec)            
                     
@@ -546,7 +549,7 @@ def plot_moyennes(df,
                         'calories_deficit',
                         'masse_totale',
                         'masse_seche',
-                        'bf_perc']
+                        'body_fat_percentage']
                   ):
     """Affiche les colonnes choisies d'une dataframe dans un format sympa,
     en moyennant sur un nombre de jours
@@ -605,8 +608,8 @@ def sch(masse_totale, *kwargs):
 
 
 def plot_columns(df,
-                 columns_list = ['masse_totale', 'masse_grasse', 'masse_seche', 'bf_perc',
-                                 'calories_in', 'rest_metabolism', 
+                 columns_list = ['masse_totale', 'masse_grasse', 'masse_seche', 'body_fat_percentage',
+                                 'calories_in', 'rest_metabolism_rate', 
                                  'calories_cardio', 'calories_strength', 'calories_deficit']):
     """Affichage brut des colonnes choisies d'une dataframe
 
@@ -647,7 +650,7 @@ def plot_columns(df,
 def plot_trends(df,
                 columns_list = ['masse_totale',
                                 'masse_seche',
-                                'bf_perc']
+                                'body_fat_percentage']
                 ):
     """Affichage colonnes choisies d'une dataframe avec tendances linéaires
 
@@ -698,15 +701,15 @@ def plot_trends(df,
 
 def plot_boxes(df_seche,
                df_bulk,
-               columns_list = ['calories_in', 'calories_nettes', 
-                               'rest_metabolism', 
+               columns_list = ['calories_in', 
+                               'rest_metabolism_rate', 
                                'calories_deficit']):
     """Affiche boxplots comparés des colonnes d'intérêt entre deux dataframes
 
     Args:
         df_seche (dataframe): période 1
         df_bulk (dataframe): période 2
-        columns_list (list, optional): colonnes d'intérêt. Defaults to ['calories_in', 'calories_nettes', 'rest_metabolism', 'calories_deficit'].
+        columns_list (list, optional): colonnes d'intérêt. Defaults to ['calories_in', 'rest_metabolism', 'calories_deficit'].
     """
     
     nb_cols_per_row = 3
@@ -745,6 +748,56 @@ def plot_boxes(df_seche,
         print(f'valeur médiane de ' + name + f' pendant la période bulk = {m} kcals')
         print(f'---------------')
         
+    plt.show()
+    
+    
+def plot_moyennes_with_targets(df,
+                  window=7, 
+                  list_of_moyennes=['masse_totale',
+                                    'masse_seche',
+                                    'body_fat_percentage',
+                                    'calories_in',
+                                    'calories_exercice_net',
+                                    'calories_deficit'
+                                    ],
+                  list_of_targets = {
+                      'calories_in' : 1900.0,
+                      'calories_exercice_net' : 350.0,
+                      'calories_deficit' : -150.0
+                      }
+                  ):
+    """Affiche les colonnes choisies d'une dataframe dans un format sympa,
+    en moyennant sur un nombre de jours, avec des targets
+
+    Args:
+        df ([type], optional): [Dataframe source].
+        window (int, optional): [nombre de jours pour la moyenne]. Defaults to 7.
+        list_of_moyennes (list, optional): [liste des colonnes à traiter]. Defaults to ['calories_exercice', 'calories_deficit', 'masse_totale', 'masse_seche', 'body_fat_percentage'].
+    """
+    
+    df_test = df
+    
+    for m in list_of_moyennes:
+        col_name = 'moyenne ' + m
+        df_test[col_name] = df_test[m].rolling(window).mean().shift(1)
+        target = list_of_targets.get(m)
+        if target is not None:
+            name_target = 'target ' + m
+            df_test[name_target] = target        
+        
+    df_test = df_test[window:]
+    n = len(list_of_moyennes)
+    
+    fig, ax = plt.subplots(1,n,figsize=(n*8,8))
+    
+    for i,m in enumerate(list_of_moyennes):
+        col_name = 'moyenne ' + m
+        df[col_name].plot(ax = ax[i], title = f'moyenne {window}j ' + m + f' vs temps', grid=True)
+        target = list_of_targets.get(m)
+        if target is not None:
+            name_target = 'target ' + m
+            df[name_target].plot(ax = ax[i], title = f'moyenne {window}j ' + m + f' vs temps avec target', grid=True)
+    
     plt.show()
 
     
