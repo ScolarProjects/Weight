@@ -761,7 +761,7 @@ def plot_moyennes_with_targets(df,
                                     'calories_deficit'
                                     ],
                   list_of_targets = {
-                      'calories_in' : 1900.0,
+                      'calories_in' : 1850.0,
                       'calories_exercice_net' : 350.0,
                       'calories_deficit' : -150.0
                       }
