@@ -59,13 +59,15 @@ class GetData():
         # second : Suivi_Poids.csv
         
         fields = ['date', 
-                  'Masse Totale', 
-                  'Masse Grasse', 
-                  'Calories in', 
+                  'Masse_Totale', 
+                  'Masse_Grasse', 
+                  'Calories_in', 
                   'Glucides', 'Lipides', 'Proteines', 
-                  'Calories Exercice Brut', 'C_Ex_Cardio', 'C_Ex_Strength',
-                  'Verif',
-                  'Duree_exercice']
+                  'Calories_Exercices_Brut', 'Duree_totale_exercices',
+                  'C_Ex_Cardio_Brut', 'Duree_Ex_Cardio',
+                  'C_Ex_Strength_Brut', 'Duree_Ex_Strength',
+                  'Verif_cal', 'Verif_durees'
+                  ]
         
         self.raw_from_manual = self.__extract_data(self.manual_follow_up_file_name, 
                                                    fields,
@@ -76,9 +78,12 @@ class GetData():
         # 2/ self.raw_from_manual is a list of dictionnaries, with one set of data per day, from a *.csv follow-up file
         
         # format is :
-        # [ { 'date' : 'DD-month_name-YYYY', 'Masse Totale' : str of total mass, 'Masse Grasse' : str of fat mass,
-        #     'Calories In' : str of kcals, 'Glucides' : str, 'Lipides' : str, 'Proteines' : str, 'Calories Exercice Brut': str,
-        #     'C_Ex_Cardio': str, 'C_Ex_Strength': str, 'Verif': str, 'Duree_exercice' : str, None: ['', '']
+        # [ { 'date' : 'DD-month_name-YYYY', 'Masse_Totale' : str of total mass, 'Masse_Grasse' : str of fat mass,
+        #     'Calories_In' : str of kcals, 'Glucides' : str, 'Lipides' : str, 'Proteines' : str, 'Calories_Exercice_Brut': str,
+        #     'Duree_total_exercices', 
+        #     'C_Ex_Cardio_Brut': str, 'Duree_Ex_Cardio': str, 
+        #     'C_Ex_Strength_Brut': str, 'Duree_Ex_Strength' : str
+        #     'Verif_cal', 'Verif_durees' : str, None: ['', '']
         #   },
         # ....
         # ]
@@ -113,8 +118,10 @@ class GetData():
         # format is :
         
         # [ { 'date' : date_object, 'masse_totale' : total mass (float), 'masse_grasse' : fat mass (float),
-        #     'calories_in' : kcals (float), 'glucides' : float, 'lipides' : float, 'proteines' : float, 'calories_exercice': float,
-        #     'calories_cardio': float, 'calories_strength': float, 'duree_exercice' : float },
+        #     'calories_in' : kcals (float), 'glucides' : float, 'lipides' : float, 'proteines' : float, 
+        #     'calories_exercice': float, 'duree_totale_exercices' : float,
+        #     'calories_cardio': float, 'duree_ex_cardio' : float
+        #     'calories_strength': float, 'duree_ex_strength' : float },
         # ....
         # ]
         
@@ -125,16 +132,18 @@ class GetData():
                 cmt = np.mean(cmt)
                 cmg = np.mean(cmg)
             else:
-                cmt = self.__conv_to_float(cdict.get('Masse Totale'))
-                cmg = self.__conv_to_float(cdict.get('Masse Grasse'))
-            cals_in = self.__conv_to_float(cdict.get('Calories in', '0.0'))
+                cmt = self.__conv_to_float(cdict.get('Masse_Totale'))
+                cmg = self.__conv_to_float(cdict.get('Masse_Grasse'))
+            cals_in = self.__conv_to_float(cdict.get('Calories_in', '0.0'))
             glu = self.__conv_to_float(cdict.get('Glucides', '0.0'))
             lip = self.__conv_to_float(cdict.get('Lipides','0.0'))
             prot = self.__conv_to_float(cdict.get('Proteines', '0.0'))
-            cals_ex = self.__conv_to_float(cdict.get('Calories Exercice Brut', '0.0'))
-            cals_card = self.__conv_to_float(cdict.get('C_Ex_Cardio', '0.0'))
-            cals_str = self.__conv_to_float(cdict.get('C_Ex_Strength', '0.0'))
-            duree_ex = self.__conv_to_float(cdict.get('Duree_exercice', '0.0'))
+            cals_ex = self.__conv_to_float(cdict.get('Calories_Exercices_Brut', '0.0'))
+            cals_card = self.__conv_to_float(cdict.get('C_Ex_Cardio_Brut', '0.0'))
+            cals_str = self.__conv_to_float(cdict.get('C_Ex_Strength_Brut', '0.0'))
+            duree_ex = self.__conv_to_float(cdict.get('Duree_totale_exercices', '0.0'))
+            duree_card = self.__conv_to_float(cdict.get('Duree_Ex_Cardio', '0.0'))
+            duree_strength = self.__conv_to_float(cdict.get('Duree_Ex_Strength', '0.0'))
             new_rec = dict([ ('date', cdate), 
                              ('masse_totale', cmt),
                              ('masse_grasse', cmg),
@@ -145,7 +154,9 @@ class GetData():
                              ('calories_exercice', cals_ex),
                              ('calories_cardio', cals_card),
                              ('calories_strength', cals_str),
-                             ('duree_exercice', duree_ex)
+                             ('duree_totale_exercices', duree_ex),
+                             ('duree_ex_cardio', duree_card),
+                             ('duree_ex_strength', duree_strength)
                              ])
             self.daily_data.append(new_rec)            
                     
@@ -260,7 +271,10 @@ class GetData():
         """
 
         data = []
-        with open(filename, newline='') as csvfile:
+        with open(filename, 
+                  newline='',
+                  encoding='ISO-8859-1'
+                  ) as csvfile:
             fichier = csv.DictReader(csvfile, fieldnames=champs, delimiter=delimiter)
             for i in range(skip):  # skip <skip> lines at the beginning of the file
                 next(fichier)
@@ -763,7 +777,7 @@ def plot_moyennes_with_targets(df,
                   list_of_targets = {
                       'calories_in' : 1850.0,
                       'calories_exercice_net' : 350.0,
-                      'calories_deficit' : -150.0
+                      'calories_deficit' : -200.0
                       }
                   ):
     """Affiche les colonnes choisies d'une dataframe dans un format sympa,
