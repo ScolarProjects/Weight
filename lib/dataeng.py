@@ -1,28 +1,28 @@
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
-from sklearn.linear_model import LinearRegression
-from sklearn.linear_model import ARDRegression
+# import matplotlib.pyplot as plt
+# from sklearn.linear_model import LinearRegression
+# from sklearn.linear_model import ARDRegression
 
-from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import StandardScaler
+# from sklearn.model_selection import train_test_split
+# from sklearn.preprocessing import StandardScaler
 
 from zipfile import ZipFile
 
 import datetime
 import json
 import re
-import shutil
+# import shutil
 
 from tqdm import tqdm
 
-import seaborn as sns
+# import seaborn as sns
 
-import ipywidgets
+# import ipywidgets
 import os
 
-import tensorflow as tf
-import tensorflow.keras as keras
+# import tensorflow as tf
+# import tensorflow.keras as keras
 
 # functions to extract, transform and load data from API and zip files to dataframes
 
@@ -40,7 +40,7 @@ class Etl:
             self.repo = repo
             
     #----------------------------------------------------------------------------------------------------------------------------------            
-    def extract_poids(self):
+    def _extract_poids(self):
         """Retourne la dataframe de toutes les mesures de poids depuis le 1er Août 2020,
         (il peut y en avoir plusieurs par jour), avec MG% et BMR calculés. 
         Drope les rows sans Masse_Totale ou Masse_Grasse
@@ -127,7 +127,7 @@ class Etl:
         return df_weight
     
     #----------------------------------------------------------------------------------------------------------------------------------
-    def extract_food(self):
+    def _extract_food(self):
         """extrait et retourne une dataframe avec kcalories
         """
         
@@ -195,7 +195,7 @@ class Etl:
         return df_food
     
     #----------------------------------------------------------------------------------------------------------------------------------
-    def extract_exos(self):
+    def _extract_exos(self):
         """Extrait exercices du fichier Polar, concatène avec fichier exos_persos, retourne une dataframe
         """
         
@@ -313,7 +313,6 @@ class Etl:
         df_exos_total.set_index('exo_date', inplace=True)
         
         start_date = min(df_exos_total.index)
-        print(f'start date = {start_date}')
         end_date = max(df_exos_total.index)
         add_indices = []
         d = start_date
@@ -329,3 +328,63 @@ class Etl:
         df_exos_total = pd.concat([df_exos_total, add_df]).sort_index()
 
         return df_exos_total
+    
+    #----------------------------------------------------------------------------------------------------------------------------------
+    def extract_store_all(self):
+        """extrait toutes les données, et les store dans trois *.csv
+        """
+        
+        # process et store les 3 dataframes brutes
+        df_weight_raw = self._extract_poids()
+        df_food_raw = self._extract_food()
+        df_exos_raw = self._extract_exos()
+        
+        file_weight_raw = os.getcwd() + "/data/weight_raw.csv"
+        file_food_raw = os.getcwd() + "/data/food_raw.csv"
+        file_exos_raw = os.getcwd() + "/data/exos_raw.csv"
+            
+        with open(file_weight_raw, 'w') as f:
+            df_weight_raw.to_csv(file_weight_raw)
+            
+        with open(file_food_raw, 'w') as f:
+            df_food_raw.to_csv(file_food_raw)
+            
+        with open(file_exos_raw, 'w') as f:
+            df_exos_raw.to_csv(file_exos_raw)
+            
+        # créé maintenant une dataframe globale avec les données agrégées par jour
+        df_food = df_food_raw.groupby(['Date']).sum(numeric_only=True)
+        df_weight = df_weight_raw.groupby(['Date']).mean()
+        df_exos_total = df_exos_raw.groupby(['exo_date']).sum(numeric_only=True)
+        df_all = pd.concat( [df_weight, df_food, df_exos_total], axis=1 ).sort_index()
+
+        # remplace les NaN dans les colonnes exercice par 0.0 : jour sans exercice
+        df_all['exo_duree'].fillna(0.0, inplace=True)
+        df_all['exo_cals_bruts'].fillna(0.0, inplace=True)
+
+        # drop les jours où il manque des données autres que les exercices
+        subset = ['Masse_Totale', 'Masse_Grasse', 'Calories']
+        df_all.dropna(subset = subset, inplace=True)
+        
+        #---- utility function ---
+        def exo_cals_nets(bmr, exo_duree, exo_cals_bruts):
+            if exo_cals_bruts > 0:
+                ecn = exo_cals_bruts - bmr / (24*60*60) * exo_duree
+            else:
+                ecn = 0.0
+            return ecn
+        #-------------------------
+
+        df_all['exo_cals_nets'] = np.where(df_all['exo_cals_bruts'] > 0, df_all['exo_cals_bruts'] - df_all['BMR'] / (24*60*60) * df_all['exo_duree'], 0 )
+        df_all['Depense_cal_totale'] = df_all['BMR'] + df_all['exo_cals_nets']
+        df_all['cal_deficit'] = df_all['Calories'] - (df_all['BMR'] + df_all['exo_cals_nets'])
+        
+        file_all_save = os.getcwd() + "/data/full_dataset.csv"
+
+        with open(file_all_save, 'w') as f:
+            df_all.to_csv(file_all_save)
+
+            # store toutes les datatframes brutes
+            file_all_save = os.getcwd() + "/data/full_dataset.csv"
+            
+        return df_weight_raw, df_food_raw, df_exos_raw, df_all
