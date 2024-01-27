@@ -42,7 +42,8 @@ class Etl:
     #----------------------------------------------------------------------------------------------------------------------------------            
     def extract_poids(self):
         """Retourne la dataframe de toutes les mesures de poids depuis le 1er Août 2020,
-        avec MG% et BMR calculés. Drope les rows sans Masse_Totale ou Masse_Grasse
+        (il peut y en avoir plusieurs par jour), avec MG% et BMR calculés. 
+        Drope les rows sans Masse_Totale ou Masse_Grasse
 
         Raises:
             NameError: _description_
@@ -96,9 +97,7 @@ class Etl:
         colnames = ['Date', 'Poids (kg)', 'Gras (kg)', 'Masse osseuse (kg)', 'Masse musculaire (kg)', 'Hydratation (kg)']
 
         df_weight = pd.read_csv(weight_csv, usecols=colnames)
-
         os.remove(weight_csv)
-
         df_weight.rename(columns = {'Poids (kg)' : 'Masse_Totale' , 
                                     'Gras (kg)' : 'Masse_Grasse',
                                     'Masse osseuse (kg)' : 'Masse_Osseuse',
@@ -108,19 +107,18 @@ class Etl:
                         inplace=True)
 
         # transforme le champ str de Date en datetime object
-
         date_format = '%Y-%m-%d %H:%M:%S'
-
         df_weight['Date'] = df_weight['Date'].apply(lambda x : datetime.datetime.strptime(x, date_format).date())
 
-        start_date = datetime.date(2020, 8, 1)  # on prend les data depuis le 1er Août 2020
-
+        # garde les data au delà du 1er Août 2020 seulement
+        start_date = datetime.date(2020, 8, 1)
         df_weight = df_weight[df_weight['Date'] >= start_date]
 
+        # drope les rows sans données Masse_Totale ou Masse_Grasse
         subset = ['Masse_Totale', 'Masse_Grasse']
         df_weight.dropna(subset = subset, inplace=True)
 
-        # df_weight['Masse_Maigre'] = df_weight['Masse_Totale'] - df_weight['Masse_Grasse']
+        # calcule MG% et BMR suivant Katch Mac Ardle
         df_weight['MG%'] = df_weight['Masse_Grasse'] / df_weight['Masse_Totale']
         df_weight['BMR'] = 370 + 21.6 * (df_weight['Masse_Totale'] - df_weight['Masse_Grasse'])  # Katch Mac Ardle
 
@@ -134,11 +132,10 @@ class Etl:
         """
         
         # recherche fichiers FOOD : format File-Export-YYYY-MM-DD-to-YYYY-MM-DD.zip
-
         # https://www.myfitnesspal.com/reports
-
         # www.myfitnesspal.com ==> reports > export data ==> File-Export-date1-to-date2.zip
 
+        # identifie les fichiers au bon format
         pattern_food = "^File-Export-[\d]{4}-[\d]{2}-[\d]{2}-to-[\d]{4}-[\d]{2}-[\d]{2}.*[.]zip"
         eng = re.compile(pattern_food)
         liste_zip_food = []
@@ -158,9 +155,8 @@ class Etl:
         if len(liste_zip_food) == 0:
             raise NameError(f'Aucun fichier de type File-Export-xxxx.zip contenant \
                 les données food ne figure dans le répertoire {downloads_rep}')
-            
-        # print(liste_zip_food)
-
+        
+        # identifie le fichier le plus récent dans la liste des fichiers éligibles
         idx = np.argmax(liste_mtime_zips)
         filename_food = liste_zip_food[idx]
 
@@ -170,11 +166,8 @@ class Etl:
             print(f"{f}")
             
         # Récupère données FOOD
-
         mfp_filename = downloads_rep + filename_food
 
-        # Extrait les archives
-            
         with ZipFile(mfp_filename, 'r') as food_zip:
             output_dir = food_zip.namelist()
             target = 'Nutrition-Summary'
@@ -183,24 +176,18 @@ class Etl:
                     food_csv = food_zip.extract(l, path=self.repo)
                     break
                 
-        # extrait la dataframe food -------------------------------
-
+        # construit la dataframe food
         colnames = ['Date', 'Meal', 'Calories', 'Fat (g)', 'Carbohydrates (g)', 'Protein (g)']
-
         df_food = pd.read_csv(food_csv, usecols=colnames)
         os.remove(food_csv)
-
         df_food.rename(columns = {'Fat (g)' : 'Lipides' , 'Carbohydrates (g)' : 'Glucides', 'Protein (g)' : 'Proteines'}, inplace=True)
 
         # transforme le champ str de Date en datetime object
-
         date_format = '%Y-%m-%d'
-
         df_food['Date'] = df_food['Date'].apply(lambda x : datetime.datetime.strptime(x, date_format).date())
-        # df_food = df_food.groupby('Date').sum(numeric_only=True)
 
-        start_date = datetime.date(2020, 8, 1)  # on prend les data depuis le 1er Août 2020
-
+        # ne garde que les données au delà du 1er Août 2020
+        start_date = datetime.date(2020, 8, 1)
         df_food = df_food[df_food['Date'] >= start_date]
         df_food.dropna(inplace=True)
         df_food.sort_index(inplace=True)
@@ -215,6 +202,7 @@ class Etl:
         #---------------------------------------------------------------------------------
         def extract_data_training(exo_dict):
             # utility fonction pour récupérer : date, durée, type exercice et calories dépensées
+            # exo_dict est au format JSON dans l'archive Polar
             
             # récupère date
             pattern = '2(\d){3,3}-(\d){2,2}-(\d){2,2}'  # on cherche une date du type 2xxx-yy-zz
@@ -232,7 +220,7 @@ class Etl:
                 exo_duration = float(m.group())
             
             # récupère type activité et calories dépensées
-            d = exo_dict.get('exercises')[0]   
+            d = exo_dict.get('exercises')[0]
             exo_type = d.get('sport')
             if d.get('kiloCalories'):
                 exo_cals = float(d.get('kiloCalories'))
@@ -245,6 +233,7 @@ class Etl:
         # recherche fichiers EXO par POLAR : format polar-user-data-export.zip
         # https://account.polar.com/#export ==> polar-user-data-export-xxxxx.zip
 
+        # recherche et construit la liste des fichiers éligibles (= au bon format)
         pattern_polar = "^polar-user-data-export_.+[.]zip"
         eng = re.compile(pattern_polar)
         liste_zip_polar = []
@@ -265,18 +254,14 @@ class Etl:
             raise NameError(f'Aucun fichier de type polar-user-data-export_xxxx.zip contenant \
                 les données exercices de Polar ne figure dans le répertoire {downloads_rep}')
             
-        # print(liste_zip_polar)
-
+        # prend le fichier éligible le plus récent
         idx = np.argmax(liste_mtime_zips)
         filename_polar = liste_zip_polar[idx]
-
         print(f"Le fichier exercices le plus récent est : {filename_polar}, parmi :\n")
-
         for f in liste_zip_polar:
             print(f"{f}")
         
-        # Récupère les données EXERCICE
-
+        # Récupère les données EXERCICE dans ce fichier
         polar_filename = self.repo + filename_polar  # données de Polar
 
         with ZipFile(polar_filename, 'r') as polar_zip:
@@ -293,11 +278,6 @@ class Etl:
                         exo_dict = json.load(f)
                         exo_date, exo_duration, exo_type, exo_cals = extract_data_training(exo_dict)
                         dict_all_exos[id_training] = [ exo_date, exo_duration, exo_type, exo_cals ]
-                        # if dict_all_exos.get(exo_date) is None:
-                        #     dict_all_exos[exo_date] = [ exo_duration, exo_cals]
-                        # else:
-                        #     dict_all_exos[exo_date] = [ dict_all_exos[exo_date][0] + exo_duration, dict_all_exos[exo_date][1] + exo_cals ]
-                        # print(f'exercice {i+1} : date = {exo_date}, durée = {exo_duration}, type = {exo_type}, cals = {exo_cals}')
                         id_training += 1
                     os.remove(enr_json)
             
@@ -312,15 +292,11 @@ class Etl:
         # convertit la colonne Jour en datetime objects en colonne Date
         pattern_date = '[\d]{2}/[\d]{2}/[\d]{2}'
         p = re.compile(pattern_date)
-
         day_format = "%d/%m/%y"
-
         df_exos_persos['exo_date'] = df_exos_persos['Jour'].apply( lambda x : datetime.datetime.strptime(p.search(x).group(0), day_format).date() )
 
-        # drope la colonne Jour, somme tous les exercices par date
+        # drope la colonne Jour
         df_exos_persos.drop(columns=['Jour'], inplace=True)
-
-        # df_exos_persos = df_exos_persos.groupby('Date').sum()
 
         # met au bon format la duree de l'exercice (minutes => secondes)
         df_exos_persos['exo_duree'] = df_exos_persos['Duree'] * 60
@@ -329,11 +305,11 @@ class Etl:
         # enfin, concatène avec le fichier issu de Polar
         df_exos_total = pd.concat( [df_exos, df_exos_persos], axis=0 )
         df_exos_total = df_exos_total.sort_values(by=['exo_date'])
-        # df_exos_total.reset_index(drop=True, inplace=True)
         df_exos_total = df_exos_total.dropna()
         df_exos_total = df_exos_total.reset_index(drop=True)
         
-        # # maintenant rajoute des zeros aux jours où il n'y a pas eu entrainement
+        # maintenant rajoute des zeros aux jours où il n'y a pas eu entrainement
+        # sinon les calculs de moyennes seront faux !
         df_exos_total.set_index('exo_date', inplace=True)
         
         start_date = min(df_exos_total.index)
@@ -342,6 +318,7 @@ class Etl:
         add_indices = []
         d = start_date
 
+        # méthode moche pour construire la liste des indices manquant. Il doit y avoir plus beau avec DateIndex etc. mais f**k it.
         while d <= end_date:
             if not (d in df_exos_total.index):
                 add_indices.append(d)
@@ -351,5 +328,4 @@ class Etl:
         add_df.index.name='exo_date'
         df_exos_total = pd.concat([df_exos_total, add_df]).sort_index()
 
-        
         return df_exos_total
