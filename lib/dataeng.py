@@ -339,9 +339,9 @@ class Etl:
         df_food_raw = self._extract_food()
         df_exos_raw = self._extract_exos()
         
-        file_weight_raw = os.getcwd() + "/data/weight_raw.csv"
-        file_food_raw = os.getcwd() + "/data/food_raw.csv"
-        file_exos_raw = os.getcwd() + "/data/exos_raw.csv"
+        file_weight_raw = os.getcwd() + "/data/raw/weight_raw.csv"
+        file_food_raw = os.getcwd() + "/data/raw/food_raw.csv"
+        file_exos_raw = os.getcwd() + "/data/raw/exos_raw.csv"
             
         with open(file_weight_raw, 'w') as f:
             df_weight_raw.to_csv(file_weight_raw)
