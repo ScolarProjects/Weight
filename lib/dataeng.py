@@ -81,7 +81,7 @@ class Etl:
         idx = np.argmax(liste_mtime_zips)
         filename_poids = liste_zip_poids[idx]
 
-        print(f"Le fichier poids le plus récent est : {filename_poids}, parmi :\n")
+        print(f"\nLe fichier poids le plus récent est : {filename_poids}, parmi :")
         for f in liste_zip_poids:
             print(f"{f}")
 
@@ -160,7 +160,7 @@ class Etl:
         idx = np.argmax(liste_mtime_zips)
         filename_food = liste_zip_food[idx]
 
-        print(f"Le fichier food le plus récent est : {filename_food}, parmi \n")
+        print(f"\nLe fichier food le plus récent est : {filename_food}, parmi")
 
         for f in liste_zip_food:
             print(f"{f}")
@@ -257,7 +257,7 @@ class Etl:
         # prend le fichier éligible le plus récent
         idx = np.argmax(liste_mtime_zips)
         filename_polar = liste_zip_polar[idx]
-        print(f"Le fichier exercices le plus récent est : {filename_polar}, parmi :\n")
+        print(f"\nLe fichier exercices le plus récent est : {filename_polar}, parmi :")
         for f in liste_zip_polar:
             print(f"{f}")
         
